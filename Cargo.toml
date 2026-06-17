@@ -1,0 +1,66 @@
+[package]
+name = "teams-whisperer"
+version = "0.1.0"
+edition = "2024"
+description = "Transcribe and summarize meeting recordings — Teams Copilot, but local-first"
+
+[features]
+default = ["whisper-rs-backend", "summarize-local", "voxtral"]
+whisper-rs-backend = ["dep:whisper-rs", "dep:whisper-rs-sys"]
+summarize-local = ["dep:mistralrs"]
+voxtral = ["dep:voxtral-mini-realtime", "dep:burn"]
+diarize = ["dep:pyo3"]
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Input: yt-dlp
+yt-dlp = { version = "2", default-features = false, features = ["rustls", "cache-memory"] }
+
+# Audio: demux + decode + resample
+symphonia = { version = "0.5", features = ["all"] }
+rubato = "1.0"
+audioadapter-buffers = "2.0"
+
+# Transcription: whisper-rs
+whisper-rs = { version = "0.15", optional = true }
+whisper-rs-sys = { version = "0.14", optional = true }
+
+# Voxtral ASR: Q4 GGUF via burn/wgpu (replaces mistralrs which has Metal NaN bug)
+voxtral-mini-realtime = { git = "https://github.com/TrevorS/voxtral-mini-realtime-rs", default-features = false, features = ["wgpu", "native-tokenizer"], optional = true }
+burn = { version = "0.20", default-features = false, features = ["std", "wgpu"], optional = true }
+
+# mistral.rs: local LLM summarization (Phi-3.5 GGUF, Metal GPU on macOS)
+mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", default-features = false, optional = true }
+
+# Diarization: PyO3 (optional)
+pyo3 = { version = "0.28", features = ["auto-initialize"], optional = true }
+
+# Model downloads (async via reqwest + rustls)
+hf-hub = { version = "0.5", default-features = false, features = ["tokio", "rustls-tls"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+anyhow = "1"
+dirs = "6"
+which = "8"
+indicatif = "0.18"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# macOS: add Metal GPU acceleration
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.15", features = ["metal"], optional = true }
+mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", default-features = false, features = ["metal"], optional = true }
+
+# Patch cubecl-wgpu for workgroup size fix (needed by voxtral-mini-realtime)
+[patch.crates-io]
+cubecl = { path = "patches/cubecl-0.9.0" }
+cubecl-wgpu = { path = "patches/cubecl-wgpu-0.9.0" }
